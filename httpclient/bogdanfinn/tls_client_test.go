@@ -2,8 +2,6 @@ package bogdanfinn
 
 import (
 	"aurora/httpclient"
-	chatgpt_types "aurora/typings/chatgpt"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,11 +46,6 @@ func TestTlsClient_Request(t *testing.T) {
 	if response.StatusCode != 200 {
 		fmt.Println("Error: ", response.StatusCode)
 	}
-	var result chatgpt_types.RequirementsResponse
-	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
-		return
-	}
-	fmt.Println(result.Token)
 }
 
 func TestChatGPTModel(t *testing.T) {
@@ -105,7 +98,4 @@ func TestChatGPTModel(t *testing.T) {
 		} `json:"categories"`
 	}
 
-	var result EnginesData
-	json.NewDecoder(response.Body).Decode(&result)
-	fmt.Println(result)
 }
