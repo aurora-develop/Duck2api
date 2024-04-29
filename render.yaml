@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: aurora
+    name: duck2api
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
