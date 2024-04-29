@@ -63,7 +63,7 @@ func (h *Handler) duckduckgo(c *gin.Context) {
 		return
 	}
 	var response_part string
-	response_part = duckgo.Handler(c, response, original_request.Stream)
+	response_part = duckgo.Handler(c, response, translated_request, original_request.Stream)
 	if c.Writer.Status() != 200 {
 		return
 	}

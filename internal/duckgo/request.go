@@ -126,7 +126,7 @@ func createHeader() httpclient.AuroraHeaders {
 	return header
 }
 
-func Handler(c *gin.Context, response *http.Response, stream bool) string {
+func Handler(c *gin.Context, response *http.Response, oldRequest duckgotypes.ApiRequest, stream bool) string {
 	reader := bufio.NewReader(response.Body)
 	if stream {
 		// Response content type is text/event-stream
@@ -135,8 +135,8 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 		// Response content type is application/json
 		c.Header("Content-Type", "application/json")
 	}
-	var originalResponse duckgotypes.ApiResponse
-	var previousText = ""
+
+	var previousText strings.Builder
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -150,6 +150,7 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 		}
 		line = line[6:]
 		if !strings.HasPrefix(line, "[DONE]") {
+			var originalResponse duckgotypes.ApiResponse
 			err = json.Unmarshal([]byte(line), &originalResponse)
 			if err != nil {
 				continue
@@ -160,7 +161,7 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 			}
 			responseString := ""
 			if originalResponse.Message != "" {
-				previousText += originalResponse.Message
+				previousText.WriteString(originalResponse.Message)
 				translatedResponse := officialtypes.NewChatCompletionChunkWithModel(originalResponse.Message, originalResponse.Model)
 				responseString = "data: " + translatedResponse.String() + "\n\n"
 			}
@@ -178,10 +179,10 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 			}
 		} else {
 			if stream {
-				final_line := officialtypes.StopChunkWithModel("stop", originalResponse.Model)
+				final_line := officialtypes.StopChunkWithModel("stop", oldRequest.Model)
 				c.Writer.WriteString("data: " + final_line.String() + "\n\n")
 			}
 		}
 	}
-	return previousText
+	return previousText.String()
 }
