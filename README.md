@@ -57,7 +57,7 @@ curl --location 'http://你的服务器ip:8080/v1/chat/completions' \
      "stream": true
    }'
 ```
-支持claude-instant-1.2和gpt-3.5-turbo
+支持claude和gpt-3.5-turbo
 ## 高级设置
 
 默认情况不需要设置，除非你有需求
