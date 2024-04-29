@@ -2,6 +2,7 @@ package duckgo
 
 import (
 	"aurora/httpclient"
+	duckgotypes "aurora/typings/duckgo"
 	officialtypes "aurora/typings/official"
 	"bufio"
 	"bytes"
@@ -15,28 +16,15 @@ import (
 	"time"
 )
 
-type ApiRequest struct {
-	Model    string `json:"model"`
-	Messages []struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	} `json:"messages"`
-}
+var (
+	Token *XqdgToken
+	UA    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+)
 
-func (a *ApiRequest) AddMessage(role string, content string) {
-	a.Messages = append(a.Messages, struct {
-		Role    string `json:"role"`
-		Content string `json:"content"`
-	}{
-		Role:    role,
-		Content: content,
-	})
-}
-
-func NewApiRequest(model string) ApiRequest {
-	return ApiRequest{
-		Model: model,
-	}
+type XqdgToken struct {
+	Token    string     `json:"token"`
+	M        sync.Mutex `json:"-"`
+	ExpireAt time.Time  `json:"expire"`
 }
 
 func InitXVQD(client httpclient.AuroraHttpClient, proxyUrl string) (string, error) {
@@ -79,7 +67,7 @@ func postStatus(client httpclient.AuroraHttpClient, proxyUrl string) (*http.Resp
 	return response, nil
 }
 
-func POSTconversation(client httpclient.AuroraHttpClient, request ApiRequest, token string, proxyUrl string) (*http.Response, error) {
+func POSTconversation(client httpclient.AuroraHttpClient, request duckgotypes.ApiRequest, token string, proxyUrl string) (*http.Response, error) {
 	if proxyUrl != "" {
 		client.SetProxy(proxyUrl)
 	}
@@ -98,12 +86,27 @@ func POSTconversation(client httpclient.AuroraHttpClient, request ApiRequest, to
 }
 
 func Handle_request_error(c *gin.Context, response *http.Response) bool {
-	if response.StatusCode == 400 {
-		c.JSON(400, gin.H{"error": gin.H{
-			"message": "Request must be proper JSON",
-			"type":    "invalid_request_error",
+	if response.StatusCode != 200 {
+		// Try read response body as JSON
+		var error_response map[string]interface{}
+		err := json.NewDecoder(response.Body).Decode(&error_response)
+		if err != nil {
+			// Read response body
+			body, _ := io.ReadAll(response.Body)
+			c.JSON(response.StatusCode, gin.H{"error": gin.H{
+				"message": "Unknown error",
+				"type":    "internal_server_error",
+				"param":   nil,
+				"code":    "500",
+				"details": string(body),
+			}})
+			return true
+		}
+		c.JSON(response.StatusCode, gin.H{"error": gin.H{
+			"message": error_response["detail"],
+			"type":    response.Status,
 			"param":   nil,
-			"code":    response.Status,
+			"code":    "error",
 		}})
 		return true
 	}
@@ -123,7 +126,7 @@ func createHeader() httpclient.AuroraHeaders {
 	return header
 }
 
-func Handler(c *gin.Context, response *http.Response, stream bool) string {
+func Handler(c *gin.Context, response *http.Response, oldRequest duckgotypes.ApiRequest, stream bool) string {
 	reader := bufio.NewReader(response.Body)
 	if stream {
 		// Response content type is text/event-stream
@@ -132,8 +135,8 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 		// Response content type is application/json
 		c.Header("Content-Type", "application/json")
 	}
-	var originalResponse ApiResponse
-	var previousText = ""
+
+	var previousText strings.Builder
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
@@ -147,6 +150,7 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 		}
 		line = line[6:]
 		if !strings.HasPrefix(line, "[DONE]") {
+			var originalResponse duckgotypes.ApiResponse
 			err = json.Unmarshal([]byte(line), &originalResponse)
 			if err != nil {
 				continue
@@ -157,7 +161,7 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 			}
 			responseString := ""
 			if originalResponse.Message != "" {
-				previousText += originalResponse.Message
+				previousText.WriteString(originalResponse.Message)
 				translatedResponse := officialtypes.NewChatCompletionChunkWithModel(originalResponse.Message, originalResponse.Model)
 				responseString = "data: " + translatedResponse.String() + "\n\n"
 			}
@@ -175,10 +179,10 @@ func Handler(c *gin.Context, response *http.Response, stream bool) string {
 			}
 		} else {
 			if stream {
-				final_line := officialtypes.StopChunkWithModel("stop", originalResponse.Model)
+				final_line := officialtypes.StopChunkWithModel("stop", oldRequest.Model)
 				c.Writer.WriteString("data: " + final_line.String() + "\n\n")
 			}
 		}
 	}
-	return previousText
+	return previousText.String()
 }
