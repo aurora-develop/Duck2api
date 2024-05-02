@@ -6,6 +6,7 @@ import (
 	"aurora/internal/duckgo"
 	"aurora/internal/proxys"
 	officialtypes "aurora/typings/official"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -99,7 +100,7 @@ func (h *Handler) engines(c *gin.Context) {
 		OwnedBy: "duckgo",
 	})
 	resModelList = append(resModelList, ResData{
-		ID:      "claude-instant-1.2",
+		ID:      "claude-3-haiku-20240307",
 		Object:  "model",
 		Created: 1685474247,
 		OwnedBy: "duckgo",
