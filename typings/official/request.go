@@ -9,7 +9,7 @@ type APIRequest struct {
 
 type api_message struct {
 	Role    string `json:"role"`
-	Content string `json:"content"`
+	Content interface{} `json:"content"`
 }
 
 type OpenAISessionToken struct {
