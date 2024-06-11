@@ -19,9 +19,6 @@ func ConvertAPIRequest(api_request officialtypes.APIRequest) duckgotypes.ApiRequ
 	if strings.HasPrefix(strings.ToLower(api_request.Model), "mixtral-8x7b") {
 		duckgo_request.Model = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 	}
-	if strings.HasPrefix(api_request.Model, "custom-") {
-		duckgo_request.Model = strings.TrimPrefix(model, "custom-");
-	}
 	content := buildContent(&api_request)
 	duckgo_request.AddMessage("user", content)
 	return duckgo_request
