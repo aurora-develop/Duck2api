@@ -7,20 +7,28 @@ import (
 )
 
 func ConvertAPIRequest(api_request officialtypes.APIRequest) duckgotypes.ApiRequest {
-	// 默认模型3.5
-	duckgo_request := duckgotypes.NewApiRequest("gpt-3.5-turbo-0125")
-	// 检查并更新模型为 claude- 开头的情况
-	if strings.HasPrefix(strings.ToLower(api_request.Model), "claude") {
-		duckgo_request.Model = "claude-3-haiku-20240307"
+	inputModel := api_request.Model
+	duckgo_request := duckgotypes.NewApiRequest(inputModel)
+	realModel := inputModel
+
+	// 模型映射，简化用户输入模型，例如 gpt-3.5 --> gpt-3.5-turbo-0125
+	// 如果模型未进行映射，则直接使用输入模型，方便后续用户使用 duckduckgo 添加的新模型。
+	modelLower := strings.ToLower(inputModel)
+	switch {
+	case strings.HasPrefix(modelLower, "gpt-3.5"):
+		realModel = "gpt-3.5-turbo-0125"
+	case strings.HasPrefix(modelLower, "claude-3-haiku"):
+		realModel = "claude-3-haiku-20240307"
+	case strings.HasPrefix(modelLower, "llama-3-70b"):
+		realModel = "meta-llama/Llama-3-70b-chat-hf"
+	case strings.HasPrefix(modelLower, "mixtral-8x7b"):
+		realModel = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 	}
-	if strings.HasPrefix(strings.ToLower(api_request.Model), "llama-3-70b") {
-		duckgo_request.Model = "meta-llama/Llama-3-70b-chat-hf"
-	}
-	if strings.HasPrefix(strings.ToLower(api_request.Model), "mixtral-8x7b") {
-		duckgo_request.Model = "mistralai/Mixtral-8x7B-Instruct-v0.1"
-	}
+
+	duckgo_request.Model = realModel
 	content := buildContent(&api_request)
 	duckgo_request.AddMessage("user", content)
+
 	return duckgo_request
 }
 
