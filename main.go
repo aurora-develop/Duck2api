@@ -18,6 +18,7 @@ import (
 var staticFiles embed.FS
 
 func main() {
+	_ = godotenv.Load(".env")
 	gin.SetMode(gin.ReleaseMode)
 	router := initialize.RegisterRouter()
 	subFS, err := fs.Sub(staticFiles, "web")
@@ -25,8 +26,6 @@ func main() {
 		log.Fatal(err)
 	}
 	router.StaticFS("/web", http.FS(subFS))
-
-	_ = godotenv.Load(".env")
 	host := os.Getenv("SERVER_HOST")
 	port := os.Getenv("SERVER_PORT")
 	tlsCert := os.Getenv("TLS_CERT")
