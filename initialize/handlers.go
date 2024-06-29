@@ -93,18 +93,23 @@ func (h *Handler) engines(c *gin.Context) {
 	}
 	var resModelList []ResData
 
-	resModelList = append(resModelList, ResData{
-		ID:      "gpt-3.5-turbo-0125",
-		Object:  "model",
-		Created: 1685474247,
-		OwnedBy: "duckgo",
-	})
-	resModelList = append(resModelList, ResData{
-		ID:      "claude-3-haiku-20240307",
-		Object:  "model",
-		Created: 1685474247,
-		OwnedBy: "duckgo",
-	})
+	// Supported models
+	modelIDs := []string{
+		"gpt-3.5-turbo-0125",
+		"claude-3-haiku-20240307",
+		"meta-llama/Llama-3-70b-chat-hf",
+		"mistralai/Mixtral-8x7B-Instruct-v0.1",
+	}
+
+	for _, modelID := range modelIDs {
+		resModelList = append(resModelList, ResData{
+			ID:      modelID,
+			Object:  "model",
+			Created: 1685474247,
+			OwnedBy: "duckduckgo",
+		})
+	}
+
 	modelS.Data = resModelList
 	c.JSON(200, modelS)
 }
