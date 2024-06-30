@@ -47,7 +47,7 @@ func InitXVQD(client httpclient.AuroraHttpClient, proxyUrl string) (string, erro
 			return "", errors.New("no x-vqd-4 token")
 		}
 		Token.Token = token
-		Token.ExpireAt = time.Now().Add(time.Minute * 5)
+		Token.ExpireAt = time.Now().Add(time.Minute * 3)
 	}
 
 	return Token.Token, nil
@@ -122,6 +122,9 @@ func createHeader() httpclient.AuroraHeaders {
 	header.Set("sec-ch-ua", `"Chromium";v="120", "Google Chrome";v="120", "Not-A.Brand";v="99"`)
 	header.Set("sec-ch-ua-mobile", "?0")
 	header.Set("sec-ch-ua-platform", `"Windows"`)
+	header.Set("sec-fetch-dest", "empty")
+	header.Set("sec-fetch-mode", "cors")
+	header.Set("sec-fetch-site", "same-origin")
 	header.Set("user-agent", UA)
 	return header
 }
