@@ -22,7 +22,7 @@ func NewStdClient() *TlsClient {
 		tls_client.WithCookieJar(tls_client.NewCookieJar()),
 		tls_client.WithRandomTLSExtensionOrder(),
 		tls_client.WithTimeoutSeconds(600),
-		tls_client.WithClientProfile(profiles.Okhttp4Android13),
+		tls_client.WithClientProfile(profiles.Opera_91),
 	}...)
 
 	stdClient := &TlsClient{Client: client}

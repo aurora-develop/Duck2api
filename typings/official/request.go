@@ -8,7 +8,7 @@ type APIRequest struct {
 }
 
 type api_message struct {
-	Role    string `json:"role"`
+	Role    string      `json:"role"`
 	Content interface{} `json:"content"`
 }
 
