@@ -8,7 +8,7 @@ import (
 
 func ConvertAPIRequest(api_request officialtypes.APIRequest) duckgotypes.ApiRequest {
 	// 默认模型3.5
-	duckgo_request := duckgotypes.NewApiRequest("gpt-3.5-turbo-0125")
+	duckgo_request := duckgotypes.NewApiRequest("gpt-4o-mini")
 	// 检查并更新模型为 claude- 开头的情况
 	if strings.HasPrefix(strings.ToLower(api_request.Model), "claude") {
 		duckgo_request.Model = "claude-3-haiku-20240307"

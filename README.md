@@ -56,13 +56,13 @@ docker-compose up -d
 curl --location 'http://你的服务器ip:8080/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-     "model": "gpt-3.5-turbo",
+     "model": "gpt-4o-mini",
      "messages": [{"role": "user", "content": "Say this is a test!"}],
      "stream": true
    }'
 ```
 ## 支持的模型
-claude和gpt-3.5-turbo，Llama-3-70b，Mixtral-8x7B等模型
+claude和gpt-4o-mini，Llama-3-70b，Mixtral-8x7B等模型
 ## 高级设置
 
 默认情况不需要设置，除非你有需求

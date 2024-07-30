@@ -94,7 +94,7 @@ func (h *Handler) engines(c *gin.Context) {
 	var resModelList []ResData
 
 	resModelList = append(resModelList, ResData{
-		ID:      "gpt-3.5-turbo-0125",
+		ID:      "gpt-4o-mini",
 		Object:  "model",
 		Created: 1685474247,
 		OwnedBy: "duckgo",
