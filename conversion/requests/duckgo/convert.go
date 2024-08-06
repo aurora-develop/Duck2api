@@ -11,12 +11,11 @@ func ConvertAPIRequest(api_request officialtypes.APIRequest) duckgotypes.ApiRequ
 	duckgo_request := duckgotypes.NewApiRequest(inputModel)
 	realModel := inputModel
 
-	// 模型映射，简化用户输入模型，例如 gpt-3.5 --> gpt-3.5-turbo-0125
 	// 如果模型未进行映射，则直接使用输入模型，方便后续用户使用 duckduckgo 添加的新模型。
 	modelLower := strings.ToLower(inputModel)
 	switch {
 	case strings.HasPrefix(modelLower, "gpt-3.5"):
-		realModel = "gpt-3.5-turbo-0125"
+		realModel = "gpt-4o-mini"
 	case strings.HasPrefix(modelLower, "claude-3-haiku"):
 		realModel = "claude-3-haiku-20240307"
 	case strings.HasPrefix(modelLower, "llama-3-70b"):

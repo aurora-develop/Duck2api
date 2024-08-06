@@ -95,6 +95,7 @@ func (h *Handler) engines(c *gin.Context) {
 
 	// Supported models
 	modelIDs := []string{
+		"gpt-4o-mini",
 		"gpt-3.5-turbo-0125",
 		"claude-3-haiku-20240307",
 		"meta-llama/Llama-3-70b-chat-hf",

@@ -31,7 +31,7 @@ func NewChatCompletionChunk(text string) ChatCompletionChunk {
 		ID:      "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK",
 		Object:  "chat.completion.chunk",
 		Created: 0,
-		Model:   "gpt-3.5-turbo-0301",
+		Model:   "gpt-4o-mini",
 		Choices: []Choices{
 			{
 				Index: 0,
@@ -82,7 +82,7 @@ func StopChunk(reason string) ChatCompletionChunk {
 		ID:      "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK",
 		Object:  "chat.completion.chunk",
 		Created: 0,
-		Model:   "gpt-3.5-turbo-0125",
+		Model:   "gpt-4o-mini",
 		Choices: []Choices{
 			{
 				Index:        0,
@@ -143,7 +143,7 @@ func NewChatCompletion(full_test string, input_tokens, output_tokens int) ChatCo
 		ID:      "chatcmpl-QXlha2FBbmROaXhpZUFyZUF3ZXNvbWUK",
 		Object:  "chat.completion",
 		Created: int64(0),
-		Model:   "gpt-3.5-turbo-0125",
+		Model:   "gpt-4o-mini",
 		Usage: usage{
 			PromptTokens:     input_tokens,
 			CompletionTokens: output_tokens,

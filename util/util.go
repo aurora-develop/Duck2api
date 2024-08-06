@@ -1,10 +1,11 @@
 package util
 
 import (
-	"github.com/pkoukk/tiktoken-go"
 	"log/slog"
 	"math/rand"
 	"time"
+
+	"github.com/pkoukk/tiktoken-go"
 )
 
 func RandomLanguage() string {
@@ -28,7 +29,7 @@ func RandomHexadecimalString() string {
 	return string(b)
 }
 func CountToken(input string) int {
-	encoding := "gpt-3.5-turbo"
+	encoding := "gpt-4o-mini"
 	tkm, err := tiktoken.EncodingForModel(encoding)
 	if err != nil {
 		slog.Warn("tiktoken.EncodingForModel error:", err)
