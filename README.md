@@ -56,7 +56,7 @@ docker-compose up -d
 curl --location 'http://你的服务器ip:8080/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --data '{
-     "model": "gpt-3.5-turbo",
+     "model": "gpt-4o-mini",
      "messages": [{"role": "user", "content": "Say this is a test!"}],
      "stream": true
    }'
@@ -64,7 +64,7 @@ curl --location 'http://你的服务器ip:8080/v1/chat/completions' \
 
 ## 支持的模型
 
-- gpt-3.5-turbo
+- ~~gpt-3.5-turbo~~  duckduckGO官方已移除3.5模型的支持  
 - claude-3-haiku
 - llama-3-70b
 - mixtral-8x7b
