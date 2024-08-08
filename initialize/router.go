@@ -4,6 +4,7 @@ import (
 	"aurora/middlewares"
 	"os"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
@@ -13,6 +14,15 @@ func RegisterRouter() *gin.Engine {
 	)
 
 	router := gin.Default()
+	// 配置CORS中间件
+	router.Use(cors.New(cors.Config{
+	    AllowOrigins:     []string{"*"},
+	    AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+	    AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+	    ExposeHeaders:    []string{"Content-Length", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "Access-Control-Allow-Methods"},
+	    AllowCredentials: true,
+	}))
+
 	router.Use(middlewares.Cors)
 
 	router.GET("/", func(c *gin.Context) {
