@@ -1,10 +1,5 @@
 # duck2api
 
-
-
-# 交流群
-https://t.me/aurora_develop
-
 # Web端 
 
 访问http://你的服务器ip:8080/web
