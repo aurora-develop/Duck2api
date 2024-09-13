@@ -36,6 +36,9 @@ func buildContent(api_request *officialtypes.APIRequest) string {
 	for _, apiMessage := range api_request.Messages {
 		role := apiMessage.Role
 		if role == "user" || role == "system" || role == "assistant" {
+			if role == "system" {
+				role = "user"
+			}
 			contentStr := ""
 			// 判断 apiMessage.Content 是否为数组
 			if arrayContent, ok := apiMessage.Content.([]interface{}); ok {
