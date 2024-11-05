@@ -9,9 +9,6 @@
 ## Deploy
 
 
-### Render部署
-[![Deploy](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy)
-
 ### 编译部署
 
 ```bash
