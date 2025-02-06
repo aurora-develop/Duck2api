@@ -61,6 +61,7 @@ curl --location 'http://你的服务器ip:8080/v1/chat/completions' \
 - llama-3.1-70b
 - mixtral-8x7b
 - gpt-4o-mini
+- o3-mini
 ## 高级设置
 
 默认情况不需要设置，除非你有需求
