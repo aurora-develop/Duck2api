@@ -44,7 +44,7 @@ func GenerateVQDHash(vqdHashRequest string) (string, error) {
 	if hash.Meta == nil {
 		hash.Meta = map[string]interface{}{}
 	}
-	hash.Meta["origin"] = "https://duckduckgo.com"
+	hash.Meta["origin"] = "https://duck.ai"
 	hash.Meta["stack"] = ""
 	hash.Meta["duration"] = time.Now().Nanosecond()%100 + 1
 
