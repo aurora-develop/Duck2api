@@ -5,7 +5,7 @@ export GOPROXY=https://goproxy.io
 go get
 
 export CGO_ENABLED=0
-PKG=aurora
+PKG=duck2api
 
 targets=(
     "windows/amd64"

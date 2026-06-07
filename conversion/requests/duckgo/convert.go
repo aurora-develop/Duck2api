@@ -3,15 +3,20 @@ package duckgo
 import (
 	duckgotypes "aurora/typings/duckgo"
 	officialtypes "aurora/typings/official"
+	"crypto/rand"
+	"crypto/rsa"
+	"encoding/base64"
+	"math/big"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
-func ConvertAPIRequest(api_request officialtypes.APIRequest) duckgotypes.ApiRequest {
-	inputModel := api_request.Model
-	duckgo_request := duckgotypes.NewApiRequest(inputModel)
+func ConvertAPIRequest(apiRequest officialtypes.APIRequest) duckgotypes.ApiRequest {
+	inputModel := apiRequest.Model
+	duckgoRequest := duckgotypes.NewApiRequest(inputModel)
 	realModel := inputModel
 
-	// 如果模型未进行映射，则直接使用输入模型，方便后续用户使用 duckduckgo 添加的新模型。
 	modelLower := strings.ToLower(inputModel)
 	switch {
 	case strings.HasPrefix(modelLower, "gpt-3.5"):
@@ -22,40 +27,66 @@ func ConvertAPIRequest(api_request officialtypes.APIRequest) duckgotypes.ApiRequ
 		realModel = "meta-llama/Llama-3.3-70B-Instruct-Turbo"
 	case strings.HasPrefix(modelLower, "mixtral-8x7b"):
 		realModel = "mistralai/Mixtral-8x7B-Instruct-v0.1"
+	case strings.HasPrefix(modelLower, "llama-4-scout"):
+		realModel = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+	case strings.HasPrefix(modelLower, "mistral-small"):
+		realModel = "mistralai/Mistral-Small-24B-Instruct-2501"
 	}
 
-	duckgo_request.Model = realModel
-	content := buildContent(&api_request)
-	duckgo_request.AddMessage("user", content)
+	duckgoRequest.Model = realModel
+	for _, message := range apiRequest.Messages {
+		role := message.Role
+		if role == "system" {
+			role = "user"
+		}
+		if role != "user" && role != "assistant" {
+			continue
+		}
 
-	return duckgo_request
-}
-
-func buildContent(api_request *officialtypes.APIRequest) string {
-	var content strings.Builder
-	for _, apiMessage := range api_request.Messages {
-		role := apiMessage.Role
-		if role == "user" || role == "system" || role == "assistant" {
-			if role == "system" {
-				role = "user"
-			}
-			contentStr := ""
-			// 判断 apiMessage.Content 是否为数组
-			if arrayContent, ok := apiMessage.Content.([]interface{}); ok {
-				// 如果是数组，遍历数组，查找第一个 type 为 "text" 的元素
-				for _, element := range arrayContent {
-					if elementMap, ok := element.(map[string]interface{}); ok {
-						if elementMap["type"] == "text" {
-							contentStr = elementMap["text"].(string)
-							break
-						}
-					}
-				}
-			} else {
-				contentStr, _ = apiMessage.Content.(string)
-			}
-			content.WriteString(role + ":" + contentStr + ";\r\n")
+		content := extractContent(message.Content)
+		if content != "" {
+			duckgoRequest.AddMessage(role, content)
 		}
 	}
-	return content.String()
+	duckgoRequest.DurableStream = newDurableStream()
+	return duckgoRequest
+}
+
+func extractContent(content interface{}) string {
+	if arrayContent, ok := content.([]interface{}); ok {
+		var text strings.Builder
+		for _, element := range arrayContent {
+			elementMap, ok := element.(map[string]interface{})
+			if !ok || elementMap["type"] != "text" {
+				continue
+			}
+			contentStr, _ := elementMap["text"].(string)
+			text.WriteString(contentStr)
+		}
+		return text.String()
+	}
+
+	contentStr, _ := content.(string)
+	return contentStr
+}
+
+func newDurableStream() duckgotypes.DurableStream {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return duckgotypes.DurableStream{}
+	}
+
+	return duckgotypes.DurableStream{
+		MessageID:      uuid.NewString(),
+		ConversationID: uuid.NewString(),
+		PublicKey: duckgotypes.PublicKey{
+			Alg:    "RSA-OAEP-256",
+			E:      base64.RawURLEncoding.EncodeToString(big.NewInt(int64(key.PublicKey.E)).Bytes()),
+			Ext:    true,
+			KeyOps: []string{"encrypt"},
+			Kty:    "RSA",
+			N:      base64.RawURLEncoding.EncodeToString(key.PublicKey.N.Bytes()),
+			Use:    "enc",
+		},
+	}
 }

@@ -33,15 +33,23 @@ func RegisterRouter() *gin.Engine {
 		{
 			prefixRouter.OPTIONS("/v1/chat/completions", optionsHandler)
 			prefixRouter.OPTIONS("/v1/chat/models", optionsHandler)
+			prefixRouter.OPTIONS("/v1/responses", optionsHandler)
+			prefixRouter.OPTIONS("/v1/response", optionsHandler)
 			prefixRouter.POST("/v1/chat/completions", middlewares.Authorization, handler.duckduckgo)
+			prefixRouter.POST("/v1/responses", middlewares.Authorization, handler.responses)
+			prefixRouter.POST("/v1/response", middlewares.Authorization, handler.responses)
 			prefixRouter.GET("/v1/models", middlewares.Authorization, handler.engines)
 		}
 	}
 
 	router.OPTIONS("/v1/chat/completions", optionsHandler)
 	router.OPTIONS("/v1/chat/models", optionsHandler)
+	router.OPTIONS("/v1/responses", optionsHandler)
+	router.OPTIONS("/v1/response", optionsHandler)
 	authGroup := router.Group("").Use(middlewares.Authorization)
 	authGroup.POST("/v1/chat/completions", handler.duckduckgo)
+	authGroup.POST("/v1/responses", handler.responses)
+	authGroup.POST("/v1/response", handler.responses)
 	authGroup.GET("/v1/models", handler.engines)
 	return router
 }
