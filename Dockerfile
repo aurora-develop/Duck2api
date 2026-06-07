@@ -1,5 +1,5 @@
-# 使用 Go 1.21 官方镜像作为构建环境
-FROM golang:1.21 AS builder
+# 使用 Go 1.25 官方镜像作为构建环境
+FROM golang:1.25 AS builder
 
 # 禁用 CGO
 ENV CGO_ENABLED=0
@@ -20,6 +20,7 @@ FROM alpine:latest
 
 # 设置工作目录
 WORKDIR /app
+RUN apk add --no-cache tzdata
 
 # 从构建阶段复制编译好的应用和资源
 COPY --from=builder /app/duck2api /app/duck2api

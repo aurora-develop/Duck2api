@@ -43,7 +43,7 @@ func InitXVQD(client httpclient.AuroraHttpClient, proxyUrl string) (string, erro
 	}
 	Token.M.Lock()
 	defer Token.M.Unlock()
-	if Token.Token == "" || Token.ExpireAt.Before(time.Now()) {
+	if Token.Token == "" {
 		status, err := postStatus(client, proxyUrl)
 		if err != nil {
 			return "", err
@@ -58,7 +58,6 @@ func InitXVQD(client httpclient.AuroraHttpClient, proxyUrl string) (string, erro
 			return "", err
 		}
 		Token.Token = token
-		Token.ExpireAt = time.Now().Add(time.Minute * 3)
 	}
 
 	return Token.Token, nil
@@ -82,22 +81,30 @@ func POSTconversation(client httpclient.AuroraHttpClient, request duckgotypes.Ap
 	if proxyUrl != "" {
 		client.SetProxy(proxyUrl)
 	}
-	response, err := postConversationOnce(client, request, token)
-	if err != nil {
-		return nil, err
+
+	maxRetries := 3
+	var response *http.Response
+	var err error
+
+	for i := 0; i <= maxRetries; i++ {
+		response, err = postConversationOnce(client, request, token)
+		if err != nil {
+			return nil, err
+		}
+
+		if response.StatusCode != http.StatusTeapot && response.StatusCode != http.StatusTooManyRequests {
+			return response, nil
+		}
+
+		response.Body.Close()
+		resetXVQD()
+		token, err = InitXVQD(client, proxyUrl)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	if response.StatusCode != http.StatusTeapot && response.StatusCode != http.StatusTooManyRequests {
-		return response, nil
-	}
-
-	response.Body.Close()
-	resetXVQD()
-	nextToken, err := InitXVQD(client, proxyUrl)
-	if err != nil {
-		return nil, err
-	}
-	return postConversationOnce(client, request, nextToken)
+	return response, nil
 }
 
 func Handle_request_error(c *gin.Context, response *http.Response) bool {
@@ -231,7 +238,51 @@ func resetXVQD() {
 	Token.M.Lock()
 	defer Token.M.Unlock()
 	Token.Token = ""
-	Token.ExpireAt = time.Time{}
+}
+
+func ReadResponseError(response *http.Response) error {
+	var errorResponse map[string]interface{}
+	if err := json.NewDecoder(response.Body).Decode(&errorResponse); err == nil {
+		if detail, ok := errorResponse["detail"]; ok {
+			return fmt.Errorf("%s: %v", response.Status, detail)
+		}
+		return fmt.Errorf("%s: %v", response.Status, errorResponse)
+	}
+
+	body, _ := io.ReadAll(response.Body)
+	if len(body) == 0 {
+		return fmt.Errorf("%s", response.Status)
+	}
+	return fmt.Errorf("%s: %s", response.Status, string(body))
+}
+
+func ReadResponseText(response *http.Response) string {
+	reader := bufio.NewReader(response.Body)
+	var previousText strings.Builder
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return ""
+		}
+		if len(line) < 6 {
+			continue
+		}
+		line = line[6:]
+		if strings.HasPrefix(line, "[DONE]") {
+			continue
+		}
+
+		var originalResponse duckgotypes.ApiResponse
+		err = json.Unmarshal([]byte(line), &originalResponse)
+		if err != nil || originalResponse.Action != "success" {
+			continue
+		}
+		previousText.WriteString(originalResponse.Message)
+	}
+	return previousText.String()
 }
 
 func Handler(c *gin.Context, response *http.Response, oldRequest duckgotypes.ApiRequest, stream bool) string {
