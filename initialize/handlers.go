@@ -96,11 +96,16 @@ func (h *Handler) engines(c *gin.Context) {
 	// Supported models
 	modelIDs := []string{
 		"gpt-4o-mini",
-		"o3-mini",
+		"gpt-5-mini",
+		"tinfoil/gpt-oss-120b",
 		"gpt-3.5-turbo-0125",
 		"claude-3-haiku-20240307",
-		"meta-llama/Llama-3.3-70B-Instruct-Turbo",
-		"mistralai/Mixtral-8x7B-Instruct-v0.1",
+		"claude-haiku-4-5",
+		"llama-3.3-70b",
+		"llama-4-scout",
+		"mistral-small",
+		"meta-llama/Llama-4-Scout-17B-16E-Instruct",
+		"mistralai/Mistral-Small-24B-Instruct-2501",
 	}
 
 	for _, modelID := range modelIDs {
