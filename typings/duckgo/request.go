@@ -33,8 +33,8 @@ type ApiRequest struct {
 	Messages                   []messages    `json:"messages"`
 	CanUseTools                bool          `json:"canUseTools"`
 	ReasoningEffort            string        `json:"reasoningEffort"`
-	CanUseApproxLocation       *bool         `json:"canUseApproxLocation"`
-	CanDelegateImageGeneration *bool         `json:"canDelegateImageGeneration"`
+	CanUseApproxLocation       *bool          `json:"canUseApproxLocation"`
+	CanDelegateImageGeneration *bool          `json:"canDelegateImageGeneration"`
 	DurableStream              DurableStream `json:"durableStream"`
 }
 
@@ -52,9 +52,11 @@ func (a *ApiRequest) AddMessage(role string, content string) {
 
 func NewApiRequest(model string) ApiRequest {
 	return ApiRequest{
-		Model:           model,
-		CanUseTools:     true,
-		ReasoningEffort: "minimal",
+		Model:                      model,
+		CanUseTools:                true,
+		ReasoningEffort:            "none",
+		CanUseApproxLocation:       nil,
+		CanDelegateImageGeneration: nil,
 		Metadata: Metadata{
 			ToolChoice: ToolChoice{
 				NewsSearch:      false,

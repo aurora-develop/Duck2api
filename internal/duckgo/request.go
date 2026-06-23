@@ -25,7 +25,7 @@ import (
 var (
 	Token     *XqdgToken
 	FEVersion *XqdgToken
-	UA        = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+	UA        = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 )
 
 type XqdgToken struct {
@@ -141,7 +141,7 @@ func createHeader() httpclient.AuroraHeaders {
 	header.Set("content-type", "application/json")
 	header.Set("origin", "https://duck.ai")
 	header.Set("referer", "https://duck.ai/")
-	header.Set("sec-ch-ua", `"Chromium";v="148", "Google Chrome";v="148", "Not/A)Brand";v="99"`)
+	header.Set("sec-ch-ua", `"Google Chrome";v="149", "Chromium";v="149", "Not)A;Brand";v="24"`)
 	header.Set("sec-ch-ua-mobile", "?0")
 	header.Set("sec-ch-ua-platform", `"Windows"`)
 	header.Set("sec-fetch-dest", "empty")
@@ -214,10 +214,19 @@ func createFESignals() string {
 		"events": []map[string]interface{}{
 			{
 				"name":  "startNewChat_free",
-				"delta": 56,
+				"delta": 48,
+			},
+			{
+				"name":  "recentChatsListImpression",
+				"delta": 124,
+			},
+			{
+				"name":    "action",
+				"delta":   1083,
+				"trusted": true,
 			},
 		},
-		"end": 246,
+		"end": time.Now().UnixMilli() - start + 2000,
 	}
 	body, _ := json.Marshal(payload)
 	return base64.StdEncoding.EncodeToString(body)

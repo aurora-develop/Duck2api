@@ -184,6 +184,7 @@ func (h *Handler) engines(c *gin.Context) {
 	modelIDs := []string{
 		"gpt-4o-mini",
 		"gpt-5-mini",
+			"gpt-5.4-mini",
 		"tinfoil/gpt-oss-120b",
 		"gpt-3.5-turbo-0125",
 		"claude-3-haiku-20240307",
