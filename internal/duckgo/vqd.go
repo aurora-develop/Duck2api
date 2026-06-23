@@ -25,7 +25,7 @@ import (
 
 const (
 	defaultVQDUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
-	defaultVQDStack     = "Error\nat l (https://duck.ai/dist/duckai-dist/entry.duckai.28d59466fe10c017873c.js:2:1438602)\nat async https://duck.ai/dist/duckai-dist/entry.duckai.28d59466fe10c017873c.js:2:1288095"
+	defaultVQDStack     = "Error\nat l (https://duck.ai/dist/duckai-dist/entry.duckai.5ec67e8376b93a8c942e.js:2:1444355)\nat async https://duck.ai/dist/duckai-dist/entry.duckai.5ec67e8376b93a8c942e.js:2:1293848"
 	defaultVQDOrigin    = "https://duck.ai"
 )
 
@@ -268,8 +268,10 @@ const vqdBrowserPrelude = `
     appVersion: userAgent__,
     product: "Gecko",
     doNotTrack: null,
-    mimeTypes: [],
-    plugins: [],
+    mimeTypes: { length: 0, item: function () { return null; }, namedItem: function () { return null; } },
+    plugins: { length: 0, item: function () { return null; }, namedItem: function () { return null; } },
+    webdriver: false,
+    deviceMemory: 8,
     javaEnabled: function () { return false; },
     getBattery: function () { return Promise.resolve({ level: 1, charging: true }); },
   };
@@ -323,10 +325,43 @@ const vqdBrowserPrelude = `
     if (idx >= 0) { this.children.splice(idx, 1); child.parentNode = null; }
     return child;
   };
+  // 内部函数: 匹配属性选择器 meta[http-equiv="..."]
+  function matchesAttributeSelector__(el, selector) {
+    var re = /^([a-z0-9_-]+)\[([a-z0-9_-]+)=(["']?)([^"'\]]+)\3\]$/i;
+    var m = selector.match(re);
+    if (!m) return false;
+    var tag = m[1].toLowerCase(), attr = m[2], val = m[4];
+    if (tag !== "*" && el.tagName && el.tagName.toLowerCase() !== tag) return false;
+    return el.getAttribute(attr) === val;
+  }
+
+  // 内部函数: 递归收集匹配元素
+  function collectMatching__(el, matchFn, results) {
+    if (matchFn(el)) results.push(el);
+    if (el.children && el.children.length > 0) {
+      for (var i = 0; i < el.children.length; i++) {
+        collectMatching__(el.children[i], matchFn, results);
+      }
+    }
+  }
+
   Element__.prototype.querySelectorAll = function (selector) {
     selector = String(selector || "").toLowerCase();
+    // 特殊: #jsa
     if (selector === "#jsa" && this.ownerDocument && this.ownerDocument.__jsa__) {
       return new NodeList__([this.ownerDocument.__jsa__]);
+    }
+    // 特殊: meta[http-equiv="Content-Security-Policy"]
+    if (selector.indexOf("meta[") === 0) {
+      var results = [];
+      if (this.children && this.children.length > 0) {
+        for (var i = 0; i < this.children.length; i++) {
+          collectMatching__(this.children[i], function(el) {
+            return matchesAttributeSelector__(el, selector);
+          }, results);
+        }
+      }
+      return new NodeList__(results);
     }
     return new NodeList__([]);
   };
@@ -485,11 +520,18 @@ const vqdBrowserPrelude = `
     performance: { now: function () { var t = Date.now(); return t % 1000 + Math.random(); } },
     console: { log: function () {}, warn: function () {}, error: function () {}, info: function () {}, debug: function () {} },
     __jsaCallbacks__: {},
+    // === Window identity checks ===
+    constructor: function Window() {},
+    navigator: navigator__,
   };
   contentWin__.self = contentWin__;
   contentWin__.window = contentWin__;
   contentWin__.top = globalThis;
   contentWin__.parent = globalThis;
+  contentWin__[Symbol.toStringTag] = "Window";
+  // Object.getOwnPropertyNames support for window property enumeration
+  contentWin__.Window = function Window() {};
+  contentWin__.Window.prototype = contentWin__;
   contentDoc__.defaultView = contentWin__;
   jsaFrame__.contentDocument = contentDoc__;
   jsaFrame__.contentWindow = contentWin__;
@@ -516,6 +558,13 @@ const vqdBrowserPrelude = `
   defProp__(globalThis, "NodeList", NodeList__);
   defProp__(globalThis, "__DDG_BE_VERSION__", "dev");
   defProp__(globalThis, "__DDG_FE_CHAT_HASH__", "hash");
+  defProp__(globalThis, "Window", function Window() {});
+  defProp__(globalThis.Window, "prototype", globalThis);
+  // Symbol.toStringTag: 让 Object.prototype.toString.call(window) === "[object Window]"
+  if (typeof Symbol !== "undefined" && Symbol.toStringTag) {
+    defProp__(globalThis, Symbol.toStringTag, "Window");
+    defProp__(contentWin__, Symbol.toStringTag, "Window");
+  }
   defProp__(globalThis, "btoa", function (v) { return __goBtoa(v); });
   defProp__(globalThis, "atob", function (v) { return __goAtob(v); });
   defProp__(globalThis, "getComputedStyle", function (el) {
