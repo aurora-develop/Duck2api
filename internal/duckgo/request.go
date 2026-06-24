@@ -208,28 +208,49 @@ func InitFEVersion(client httpclient.AuroraHttpClient, proxyUrl string) (string,
 }
 
 func createFESignals() string {
-	start := time.Now().UnixMilli()
+	now := time.Now().UnixMilli()
+	// Reproduce the event log the duck.ai frontend records between page load
+	// and sending the first message (captured from a real /duckchat/v1/chat
+	// request): onboarding_impression -> action -> onboarding_finish ->
+	// startNewChat_free. `start` is an epoch-ms timestamp; each event `delta`
+	// and `end` is the cumulative ms elapsed since `start`. Light jitter keeps
+	// requests from sharing an identical fingerprint.
+	impression := 70 + randInt63n(60)              // ~70-130ms
+	action := impression + 40000 + randInt63n(40000)
+	finish := action + 200000 + randInt63n(150000)
+	startChat := finish + 20 + randInt63n(80)
+	end := startChat + randInt63n(10)
 	payload := map[string]interface{}{
-		"start": start,
+		"start": now - end,
 		"events": []map[string]interface{}{
-			{
-				"name":  "startNewChat_free",
-				"delta": 48,
-			},
-			{
-				"name":  "recentChatsListImpression",
-				"delta": 124,
-			},
-			{
-				"name":    "action",
-				"delta":   1083,
-				"trusted": true,
-			},
+			{"name": "onboarding_impression", "delta": impression},
+			{"name": "action", "delta": action, "trusted": true},
+			{"name": "onboarding_finish", "delta": finish},
+			{"name": "startNewChat_free", "delta": startChat},
 		},
-		"end": time.Now().UnixMilli() - start + 2000,
+		"end": end,
 	}
 	body, _ := json.Marshal(payload)
 	return base64.StdEncoding.EncodeToString(body)
+}
+
+// randInt63n returns a uniform random non-negative int64 in [0, n).
+func randInt63n(n int64) int64 {
+	if n <= 0 {
+		return 0
+	}
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return 0
+	}
+	var v int64
+	for _, b := range buf {
+		v = v<<8 | int64(b)
+	}
+	if v < 0 {
+		v = -v
+	}
+	return v % n
 }
 
 func randomHex(byteLength int) string {
