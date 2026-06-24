@@ -17,3 +17,4 @@ tools/authenticator/.proxies.txt.swp
 *.json
 *.bin
 .playwright-mcp/
+analysis/

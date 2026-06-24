@@ -210,15 +210,13 @@ func InitFEVersion(client httpclient.AuroraHttpClient, proxyUrl string) (string,
 func createFESignals() string {
 	now := time.Now().UnixMilli()
 	// Reproduce the event log the duck.ai frontend records between page load
-	// and sending the first message (captured from a real /duckchat/v1/chat
-	// request): onboarding_impression -> action -> onboarding_finish ->
-	// startNewChat_free. `start` is an epoch-ms timestamp; each event `delta`
-	// and `end` is the cumulative ms elapsed since `start`. Light jitter keeps
-	// requests from sharing an identical fingerprint.
-	impression := 70 + randInt63n(60)              // ~70-130ms
-	action := impression + 40000 + randInt63n(40000)
-	finish := action + 200000 + randInt63n(150000)
-	startChat := finish + 20 + randInt63n(80)
+	// request): onboarding_impression -> action -> onboarding_finish -> startNewChat_free.
+	// 模拟真实用户行为: 页面加载 -> 用户思考输入 -> 完成输入 -> 点击发送
+	// 时间间隔调整为更接近真实用户的行为模式
+	impression := 50 + randInt63n(100)              // 50-150ms (页面加载完成)
+	action := impression + 5000 + randInt63n(25000) // 5-30秒 (用户阅读并思考)
+	finish := action + 1000 + randInt63n(9000)      // 1-10秒 (输入问题)
+	startChat := finish + 10 + randInt63n(90)       // 10-100ms (点击发送按钮)
 	end := startChat + randInt63n(10)
 	payload := map[string]interface{}{
 		"start": now - end,
