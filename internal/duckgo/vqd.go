@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	defaultVQDUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
-	defaultVQDStack     = "Error\nat l (https://duck.ai/dist/duckai-dist/entry.duckai.5ec67e8376b93a8c942e.js:2:1444355)\nat async https://duck.ai/dist/duckai-dist/entry.duckai.5ec67e8376b93a8c942e.js:2:1293848"
+	defaultVQDUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+	defaultVQDStack     = "Error\nat l (https://duck.ai/dist/duckai-dist/entry.duckai.c0a8c794abcbc8ee2d3c.js:2:1446307)\nat async https://duck.ai/dist/duckai-dist/entry.duckai.c0a8c794abcbc8ee2d3c.js:2:1294181"
 	defaultVQDOrigin    = "https://duck.ai"
 )
 
@@ -559,7 +559,9 @@ const vqdBrowserPrelude = `
   defProp__(globalThis, "__DDG_BE_VERSION__", "dev");
   defProp__(globalThis, "__DDG_FE_CHAT_HASH__", "hash");
   defProp__(globalThis, "Window", function Window() {});
-  defProp__(globalThis.Window, "prototype", globalThis);
+  try { defProp__(globalThis.Window, "prototype", globalThis); } catch (e) {
+    // Goja 的 Window 构造函数的 prototype 不可重新定义, 跳过
+  }
   // Symbol.toStringTag: 让 Object.prototype.toString.call(window) === "[object Window]"
   if (typeof Symbol !== "undefined" && Symbol.toStringTag) {
     defProp__(globalThis, Symbol.toStringTag, "Window");
@@ -634,5 +636,13 @@ const vqdBrowserPrelude = `
     var img = { width: 0, height: 0, src: "", onload: null, onerror: null, naturalWidth: 0, naturalHeight: 0, complete: false };
     return img;
   });
+
+  // Fix constructor .name for challenge compatibility
+  try { Object.defineProperty(NodeList, "name", { value: "NodeList", configurable: true }); } catch (e) {}
+  try { Object.defineProperty(Element, "name", { value: "Element", configurable: true }); } catch (e) {}
+  try { Object.defineProperty(HTMLElement, "name", { value: "HTMLElement", configurable: true }); } catch (e) {}
+  try { Object.defineProperty(HTMLDivElement, "name", { value: "HTMLDivElement", configurable: true }); } catch (e) {}
+  try { Object.defineProperty(HTMLIFrameElement, "name", { value: "HTMLIFrameElement", configurable: true }); } catch (e) {}
+  try { Object.defineProperty(HTMLScriptElement, "name", { value: "HTMLScriptElement", configurable: true }); } catch (e) {}
 })();
 `
