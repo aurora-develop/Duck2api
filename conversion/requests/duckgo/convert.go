@@ -3,12 +3,20 @@ package duckgo
 import (
 	duckgotypes "aurora/typings/duckgo"
 	officialtypes "aurora/typings/official"
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/base64"
+	"image"
+	"image/draw"
+	"image/jpeg"
+	"image/png"
+	"log"
+	"math"
 	"math/big"
 	"strings"
 
+	"github.com/chai2010/webp"
 	"github.com/google/uuid"
 )
 
@@ -98,6 +106,7 @@ func extractContentParts(content interface{}) []duckgotypes.ContentPart {
 
 	// Array content (multimodal)
 	if arrayContent, ok := content.([]interface{}); ok {
+		log.Printf("[DEBUG] extractContentParts: array with %d elements", len(arrayContent))
 		var parts []duckgotypes.ContentPart
 		for _, element := range arrayContent {
 			elementMap, ok := element.(map[string]interface{})
@@ -143,19 +152,23 @@ func extractContentParts(content interface{}) []duckgotypes.ContentPart {
 			case "input_file":
 				// OpenAI format: {"type":"input_file","file_id":"file-xxx"}
 				if fileID, ok := elementMap["file_id"].(string); ok && fileID != "" {
+					log.Printf("[DEBUG] input_file: file_id=%s", fileID)
 					if FileStore != nil {
 						if filename, mimeType, data, ok := FileStore(fileID); ok {
-							b64 := base64.StdEncoding.EncodeToString(data)
-							// Image files → send as image part
+							log.Printf("[DEBUG] FileStore found: %s %s %d bytes", filename, mimeType, len(data))
+							// Image files → convert to JPEG and send as image part
 							if strings.HasPrefix(mimeType, "image/") {
+								webpData := convertToWebP(data, mimeType)
+								b64 := base64.StdEncoding.EncodeToString(webpData)
+								log.Printf("[DEBUG] Image: %d bytes webp, %d chars b64", len(webpData), len(b64))
 								parts = append(parts, duckgotypes.ContentPart{
 									Type:     "image",
-									Image:    "data:" + mimeType + ";base64," + b64,
-									MimeType: mimeType,
+									Image:    "data:image/webp;base64," + b64,
+									MimeType: "image/webp",
 								})
 							} else {
 								// Non-image files (PDF, text, etc.) → embed as text context
-								fileText := string(data)
+								fileText := extractTextContent(data, mimeType)
 								if len(fileText) > 50000 {
 									fileText = fileText[:50000] + "\n...(truncated)"
 								}
@@ -215,4 +228,69 @@ func newDurableStream() duckgotypes.DurableStream {
 			Use:    "enc",
 		},
 	}
+}
+
+// convertToWebP converts image data to WebP format with compression and resizing
+func convertToWebP(data []byte, mimeType string) []byte {
+	var img image.Image
+	var err error
+
+	// Decode based on mime type
+	if strings.Contains(mimeType, "jpeg") || strings.Contains(mimeType, "jpg") {
+		img, err = jpeg.Decode(bytes.NewReader(data))
+	} else if strings.Contains(mimeType, "png") {
+		img, err = png.Decode(bytes.NewReader(data))
+	}
+	if img == nil {
+		img, _, err = image.Decode(bytes.NewReader(data))
+	}
+	if err != nil || img == nil {
+		return data
+	}
+
+	// Resize if too large (max 512px on longest side)
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	maxSize := 512
+	if w > maxSize || h > maxSize {
+		ratio := float64(maxSize) / math.Max(float64(w), float64(h))
+		newW := int(float64(w) * ratio)
+		newH := int(float64(h) * ratio)
+		if newW < 1 {
+			newW = 1
+		}
+		if newH < 1 {
+			newH = 1
+		}
+		resized := image.NewRGBA(image.Rect(0, 0, newW, newH))
+		for y := 0; y < newH; y++ {
+			for x := 0; x < newW; x++ {
+				srcX := bounds.Min.X + x*w/newW
+				srcY := bounds.Min.Y + y*h/newH
+				resized.Set(x, y, img.At(srcX, srcY))
+			}
+		}
+		img = resized
+	} else {
+		rgba := image.NewRGBA(bounds)
+		draw.Draw(rgba, bounds, img, bounds.Min, draw.Src)
+		img = rgba
+	}
+
+	var buf bytes.Buffer
+	if err := webp.Encode(&buf, img, &webp.Options{Quality: 75}); err != nil {
+		// Fallback to JPEG if webp fails
+		var jpegBuf bytes.Buffer
+		jpeg.Encode(&jpegBuf, img, &jpeg.Options{Quality: 75})
+		return jpegBuf.Bytes()
+	}
+	return buf.Bytes()
+}
+
+// extractTextContent extracts readable text from file data
+func extractTextContent(data []byte, mimeType string) string {
+	text := string(data)
+	// Remove null bytes
+	text = strings.ReplaceAll(text, "\x00", "")
+	return text
 }

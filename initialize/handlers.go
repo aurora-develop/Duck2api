@@ -8,7 +8,9 @@ import (
 	duckgotypes "aurora/typings/duckgo"
 	officialtypes "aurora/typings/official"
 	"encoding/base64"
+	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -55,14 +57,22 @@ func (h *Handler) duckduckgo(c *gin.Context) {
 	}
 	translated_request, response, err := h.startDuckDuckGoRequest(original_request)
 	if err != nil {
-		c.JSON(500, gin.H{
-			"error": err.Error(),
-		})
+		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 	defer response.Body.Close()
 
-	if duckgo.Handle_request_error(c, response) {
+	// Debug: log upstream response status
+	if response.StatusCode != 200 {
+		bodyBytes, _ := io.ReadAll(response.Body)
+		log.Printf("[DEBUG] DuckDuckGo returned %d: %s", response.StatusCode, string(bodyBytes))
+		// Reconstruct response for error handler
+		c.JSON(response.StatusCode, gin.H{"error": gin.H{
+			"message": string(bodyBytes),
+			"type":    "upstream_error",
+			"code":    response.Status,
+			"model":   translated_request.Model,
+		}})
 		return
 	}
 	response_part := duckgo.Handler(c, response, translated_request, original_request.Stream)
@@ -123,16 +133,27 @@ func (h *Handler) startDuckDuckGoRequest(originalRequest officialtypes.APIReques
 		return duckgotypes.ApiRequest{}, nil, err
 	}
 
-	// Extract reasoning effort and web search from request
 	reasoningEffort := originalRequest.ReasoningEffort
 	webSearch := originalRequest.WebSearch != nil && *originalRequest.WebSearch
 
 	translatedRequest := duckgoConvert.ConvertAPIRequestWithOptions(originalRequest, reasoningEffort, webSearch)
+
+	// Debug: log request
+	reqJSON, _ := json.Marshal(translatedRequest)
+	log.Printf("[DEBUG] DuckDuckGo request: %s", truncateStr(string(reqJSON), 2000))
+
 	response, err := duckgo.POSTconversation(client, translatedRequest, token, proxyUrl)
 	if err != nil {
 		return duckgotypes.ApiRequest{}, nil, err
 	}
 	return translatedRequest, response, nil
+}
+
+func truncateStr(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 func writeResponsesStream(c *gin.Context, text string, model string) {
