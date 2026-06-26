@@ -18,8 +18,9 @@ Duck2API 提供与 OpenAI API 完全兼容的接口，底层使用 DuckDuckGo AI
 4. [图像编辑](#4-图像编辑)
 5. [文件管理](#5-文件管理)
 6. [语音转文字](#6-语音转文字)
-7. [模型列表](#7-模型列表)
-8. [健康检查](#8-健康检查)
+7. [文字转语音](#7-文字转语音)
+8. [模型列表](#8-模型列表)
+9. [健康检查](#9-健康检查)
 
 ---
 
@@ -397,7 +398,68 @@ curl http://localhost:8080/v1/audio/transcriptions \
 
 ---
 
-## 7. 模型列表
+## 7. 文字转语音
+
+### `POST /v1/audio/speech`
+
+OpenAI 兼容的文字转语音接口。底层使用 Duck.ai 的 WebRTC + OpenAI Realtime API（`gpt-realtime-mini`）生成语音。
+
+### 请求体
+
+| 字段 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `model` | string | 是 | 模型，如 `tts-1` |
+| `input` | string | 是 | 要转换的文字 |
+| `voice` | string | 否 | 语音，如 `alloy`，默认 `alloy` |
+| `response_format` | string | 否 | 输出格式：`mp3`（默认）、`wav`、`ogg`、`flac`、`aac` |
+| `speed` | number | 否 | 语速（暂不支持） |
+
+### 请求示例
+
+```bash
+# MP3 格式
+curl http://localhost:8080/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"你好，世界！","voice":"alloy","response_format":"mp3"}' \
+  --output speech.mp3
+
+# WAV 格式
+curl http://localhost:8080/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"Hello world","response_format":"wav"}' \
+  --output speech.wav
+
+# OGG/Opus 格式（直接返回，无需 FFmpeg 转换）
+curl http://localhost:8080/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"测试语音","response_format":"ogg"}' \
+  --output speech.ogg
+```
+
+### 响应
+
+直接返回音频二进制数据，`Content-Type` 根据格式不同：
+
+| 格式 | Content-Type |
+|------|-------------|
+| mp3 | `audio/mpeg` |
+| wav | `audio/wav` |
+| ogg | `audio/ogg` |
+| flac | `audio/flac` |
+| aac | `audio/aac` |
+
+### 技术实现
+
+1. 通过 WebRTC 连接 Duck.ai 的 OpenAI Realtime API（`gpt-realtime-mini-2025-12-15`）
+2. 通过 DataChannel 发送文字，接收音频事件
+3. 通过 MediaTrack 接收 AI 语音（Opus 格式）
+4. 使用 FFmpeg 转换为目标格式（需要系统安装 FFmpeg）
+
+> **注意**: 需要系统安装 FFmpeg 才能支持 MP3/WAV/FLAC/AAC 格式转换。OGG/Opus 格式无需 FFmpeg。
+
+---
+
+## 8. 模型列表
 
 ### `GET /v1/models`
 
@@ -423,7 +485,7 @@ curl http://localhost:8080/v1/models
 
 ---
 
-## 8. 健康检查
+## 9. 健康检查
 
 ### `GET /`
 
@@ -519,17 +581,29 @@ socks5://proxy3.example.com:1080
 
 - 使用 Duck.ai 的 `/duckchat/v1/chat` 端点
 - 通过 `metadata.toolChoice.GenerateImage: true` 启用图像生成
-- SSE 响应中包含 `parts` 数组，`type: "generated-image"` 的 part 包含 base64 图片数据
-- 图片格式为 PNG，以 `data:image/png;base64,...` 形式返回
+- SSE 响应中包含 `ui-component` 类型的消息，`data` 字段中包含 `b64Image`（base64 图片数据）
+- 图片格式为 JPEG，以 `data:image/jpeg;base64,...` 形式返回
+- 图片自动缩放到 512px 并转为 WebP 格式发送给 DuckDuckGo
 
 ### 推理模式原理
 
 - Duck.ai 的推理模型（如 gpt-5.4-mini）支持 `reasoningEffort` 参数
-- 可选值：`none`（快速模式）、`low`、`medium`、`high`
-- 高推理深度会生成更详细的思考过程
+- 用户传入 `reasoning_effort: "high"/"max"/"xhigh"` 映射为 Duck.ai 的 `"low"`（推理模式）
+- 不传或传其他值映射为 `"none"`（快速模式）
 
 ### 语音转文字原理
 
 - 调用 Duck.ai 的 `/duckchat/v1/dictation` 端点
 - 音频以原始二进制发送，`Content-Type` 为音频格式
 - 使用相同的 VQD 认证机制
+- 支持重试（418/429 错误自动重试）
+
+### 文字转语音原理
+
+- 通过 WebRTC 连接 Duck.ai 的 OpenAI Realtime API
+- 端点：`GET /duckchat/v1/ice-servers`（获取 ICE 服务器）、`POST /duckchat/v1/session`（SDP 信令交换）
+- 使用 `pion/webrtc` 库建立 WebRTC PeerConnection
+- 通过 DataChannel（`duckai-voice-session`）发送文字，接收控制事件
+- 通过 MediaTrack 接收 AI 语音（Opus 格式）
+- 使用 FFmpeg 将 OGG/Opus 转换为用户请求的格式（MP3/WAV/FLAC/AAC）
+- 模型：`gpt-realtime-mini-2025-12-15`

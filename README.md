@@ -1,6 +1,6 @@
 # Duck2API
 
-DuckDuckGo AI Chat 转 OpenAI 兼容 API 代理。支持 Chat Completions、图像生成/编辑、文件上传问答、语音转文字、推理模式、网络搜索等完整功能。
+DuckDuckGo AI Chat 转 OpenAI 兼容 API 代理。支持 Chat Completions、图像生成/编辑、文件上传问答、语音转文字、文字转语音、推理模式、网络搜索等完整功能。
 ## 接口文档
 
 curl 示例请查看：[API.md](API.md)
@@ -45,6 +45,7 @@ docker-compose up -d
 | 文件上传 | `POST /v1/files` | 上传文件用于问答 |
 | 文件管理 | `GET/DELETE /v1/files/:id` | 查询/删除文件 |
 | 语音转文字 | `POST /v1/audio/transcriptions` | Whisper 兼容接口 |
+| 文字转语音 | `POST /v1/audio/speech` | TTS 接口，支持 MP3/WAV/OGG |
 | 模型列表 | `GET /v1/models` | 列出可用模型 |
 
 ## 快速开始
@@ -148,6 +149,17 @@ curl http://localhost:8080/v1/audio/transcriptions \
 ```
 
 支持格式：webm、ogg、mp3、wav、m4a、flac、opus、aac
+
+### 文字转语音
+
+```bash
+curl http://localhost:8080/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"你好世界","voice":"alloy","response_format":"mp3"}' \
+  --output speech.mp3
+```
+
+支持格式：mp3、wav、ogg、flac、aac（底层使用 Duck.ai 的 WebRTC + OpenAI Realtime API）
 
 ## 支持的模型
 

@@ -67,6 +67,8 @@ func registerRoutes(group *gin.RouterGroup, handler *Handler) {
 	// Audio
 	group.OPTIONS("/v1/audio/transcriptions", optionsHandler)
 	group.POST("/v1/audio/transcriptions", middlewares.Authorization, handler.audioTranscriptions)
+	group.OPTIONS("/v1/audio/speech", optionsHandler)
+	group.POST("/v1/audio/speech", middlewares.Authorization, handler.audioSpeech)
 
 	// Models
 	group.OPTIONS("/v1/models", optionsHandler)
