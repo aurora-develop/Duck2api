@@ -5,9 +5,11 @@ import (
 	"aurora/httpclient/bogdanfinn"
 	"aurora/internal/duckgo"
 	officialtypes "aurora/typings/official"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"path/filepath"
 	"strings"
 	"time"
@@ -244,55 +246,76 @@ func (h *Handler) callDictation(audioBytes []byte, contentType string) (string, 
 		client.SetProxy(proxyUrl)
 	}
 
-	// Init VQD for dictation endpoint
-	token, err := duckgo.InitXVQD(client, proxyUrl)
-	if err != nil {
-		return "", fmt.Errorf("failed to init VQD: %w", err)
-	}
+	maxRetries := 3
+	for i := 0; i <= maxRetries; i++ {
+		token, err := duckgo.InitXVQD(client, proxyUrl)
+		if err != nil {
+			return "", fmt.Errorf("failed to init VQD: %w", err)
+		}
 
-	header := make(httpclient.AuroraHeaders)
-	header.Set("Content-Type", contentType)
-	header.Set("accept", "application/json")
-	header.Set("origin", "https://duck.ai")
-	header.Set("referer", "https://duck.ai/")
-	header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36")
-	header.Set("x-vqd-hash-1", token)
+		header := make(httpclient.AuroraHeaders)
+		header.Set("Content-Type", contentType)
+		header.Set("accept", "application/json")
+		header.Set("origin", "https://duck.ai")
+		header.Set("referer", "https://duck.ai/")
+		header.Set("user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36")
+		header.Set("x-vqd-hash-1", token)
+		header.Set("x-ddg-journey-id", duckgo.RandomHex(16))
+		header.Set("x-fe-signals", duckgo.CreateFESignals())
 
-	if feVersion, err := duckgo.InitFEVersion(client, ""); err == nil && feVersion != "" {
-		header.Set("x-fe-version", feVersion)
-	}
+		if feVersion, err := duckgo.InitFEVersion(client, ""); err == nil && feVersion != "" {
+			header.Set("x-fe-version", feVersion)
+		}
 
-	resp, err := client.Request(httpclient.POST, "https://duck.ai/duckchat/v1/dictation", header, nil, strings.NewReader(string(audioBytes)))
-	if err != nil {
-		return "", fmt.Errorf("dictation request failed: %w", err)
-	}
-	defer resp.Body.Close()
+		log.Printf("[DEBUG] Dictation attempt %d: %d bytes, contentType=%s", i+1, len(audioBytes), contentType)
+		resp, err := client.Request(httpclient.POST, "https://duck.ai/duckchat/v1/dictation", header, nil, bytes.NewReader(audioBytes))
+		if err != nil {
+			return "", fmt.Errorf("dictation request failed: %w", err)
+		}
 
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("dictation returned %d: %s", resp.StatusCode, string(body))
-	}
+		log.Printf("[DEBUG] Dictation response: %d", resp.StatusCode)
+		if resp.StatusCode == 418 || resp.StatusCode == 429 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			log.Printf("[DEBUG] Dictation retry body: %s", string(body))
+			duckgo.ResetXVQD()
+			continue
+		}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read dictation response: %w", err)
-	}
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			return "", fmt.Errorf("dictation returned %d: %s", resp.StatusCode, string(body))
+		}
 
-	// Parse response - expect JSON with text field
-	var result map[string]interface{}
-	if err := json.Unmarshal(body, &result); err != nil {
-		// If not JSON, return raw text
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return "", fmt.Errorf("failed to read dictation response: %w", err)
+		}
+
+		// Try to parse as JSON
+		var result map[string]interface{}
+		if err := json.Unmarshal(body, &result); err != nil {
+			text := strings.TrimSpace(string(body))
+			if text != "" {
+				return text, nil
+			}
+			return "", fmt.Errorf("empty dictation response")
+		}
+
+		for _, key := range []string{"text", "transcription", "result", "content"} {
+			if val, ok := result[key]; ok {
+				if s, ok := val.(string); ok && s != "" {
+					return s, nil
+				}
+			}
+		}
+
 		return string(body), nil
 	}
 
-	if text, ok := result["text"].(string); ok {
-		return text, nil
-	}
-	if transcription, ok := result["transcription"].(string); ok {
-		return transcription, nil
-	}
-
-	return string(body), nil
+	return "", fmt.Errorf("dictation failed after %d retries", maxRetries)
 }
 
 // chatWithFiles handles chat completions with file references

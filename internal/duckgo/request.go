@@ -97,7 +97,7 @@ func POSTconversation(client httpclient.AuroraHttpClient, request duckgotypes.Ap
 		}
 
 		response.Body.Close()
-		resetXVQD()
+		ResetXVQD()
 		token, err = InitXVQD(client, proxyUrl)
 		if err != nil {
 			return nil, err
@@ -159,8 +159,8 @@ func postConversationOnce(client httpclient.AuroraHttpClient, request duckgotype
 	header := createHeader()
 	header.Set("accept", "text/event-stream")
 	header.Set("priority", "u=1, i")
-	header.Set("x-ddg-journey-id", randomHex(16))
-	header.Set("x-fe-signals", createFESignals())
+	header.Set("x-ddg-journey-id", RandomHex(16))
+	header.Set("x-fe-signals", CreateFESignals())
 	if feVersion, err := InitFEVersion(client, ""); err == nil && feVersion != "" {
 		header.Set("x-fe-version", feVersion)
 	}
@@ -207,7 +207,7 @@ func InitFEVersion(client httpclient.AuroraHttpClient, proxyUrl string) (string,
 	return FEVersion.Token, nil
 }
 
-func createFESignals() string {
+func CreateFESignals() string {
 	now := time.Now().UnixMilli()
 	// Reproduce the event log the duck.ai frontend records between page load
 	// request): onboarding_impression -> action -> onboarding_finish -> startNewChat_free.
@@ -251,7 +251,7 @@ func randInt63n(n int64) int64 {
 	return v % n
 }
 
-func randomHex(byteLength int) string {
+func RandomHex(byteLength int) string {
 	buffer := make([]byte, byteLength)
 	if _, err := rand.Read(buffer); err != nil {
 		return fmt.Sprintf("%x", time.Now().UnixNano())
@@ -259,7 +259,7 @@ func randomHex(byteLength int) string {
 	return hex.EncodeToString(buffer)
 }
 
-func resetXVQD() {
+func ResetXVQD() {
 	if Token == nil {
 		return
 	}
