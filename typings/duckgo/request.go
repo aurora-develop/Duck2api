@@ -1,5 +1,7 @@
 package duckgo
 
+import "encoding/json"
+
 type DurableStream struct {
 	MessageID      string    `json:"messageId"`
 	ConversationID string    `json:"conversationId"`
@@ -21,10 +23,69 @@ type PublicKey struct {
 }
 
 type ToolChoice struct {
+	GenerateImage   bool `json:"GenerateImage,omitempty"`
+	WebSearch       bool `json:"WebSearch,omitempty"`
 	NewsSearch      bool `json:"NewsSearch"`
 	VideosSearch    bool `json:"VideosSearch"`
 	LocalSearch     bool `json:"LocalSearch"`
 	WeatherForecast bool `json:"WeatherForecast"`
+}
+
+// ContentPart represents a single part in a multipart message
+type ContentPart struct {
+	Type     string `json:"type"`               // "text", "image", "file"
+	Text     string `json:"text,omitempty"`      // for type=text
+	Image    string `json:"image,omitempty"`     // for type=image (data URL)
+	MimeType string `json:"mimeType,omitempty"`  // for type=image or type=file
+	Filename string `json:"filename,omitempty"`  // for type=file
+}
+
+// MessageContent can be either a plain string or an array of ContentParts
+type MessageContent struct {
+	Parts []ContentPart
+}
+
+func (m *MessageContent) MarshalJSON() ([]byte, error) {
+	if len(m.Parts) == 1 && m.Parts[0].Type == "text" {
+		return json.Marshal(m.Parts[0].Text)
+	}
+	return json.Marshal(m.Parts)
+}
+
+func (m *MessageContent) IsEmpty() bool {
+	if m == nil || len(m.Parts) == 0 {
+		return true
+	}
+	for _, p := range m.Parts {
+		if p.Type == "text" && p.Text != "" {
+			return false
+		}
+		if p.Type == "image" && p.Image != "" {
+			return false
+		}
+		if p.Type == "file" {
+			return false
+		}
+	}
+	return true
+}
+
+func (m *MessageContent) TextContent() string {
+	if m == nil {
+		return ""
+	}
+	var text string
+	for _, p := range m.Parts {
+		if p.Type == "text" {
+			text += p.Text
+		}
+	}
+	return text
+}
+
+type messages struct {
+	Role    string         `json:"role"`
+	Content MessageContent `json:"content"`
 }
 
 type ApiRequest struct {
@@ -33,20 +94,25 @@ type ApiRequest struct {
 	Messages                   []messages    `json:"messages"`
 	CanUseTools                bool          `json:"canUseTools"`
 	ReasoningEffort            string        `json:"reasoningEffort"`
-	CanUseApproxLocation       *bool          `json:"canUseApproxLocation"`
-	CanDelegateImageGeneration *bool          `json:"canDelegateImageGeneration"`
+	CanUseApproxLocation       *bool         `json:"canUseApproxLocation"`
+	CanDelegateImageGeneration *bool         `json:"canDelegateImageGeneration"`
 	DurableStream              DurableStream `json:"durableStream"`
-}
-
-type messages struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
 }
 
 func (a *ApiRequest) AddMessage(role string, content string) {
 	a.Messages = append(a.Messages, messages{
+		Role: role,
+		Content: MessageContent{
+			Parts: []ContentPart{{Type: "text", Text: content}},
+		},
+	})
+}
+
+// AddMessageWithParts adds a message with complex content (text + images + files)
+func (a *ApiRequest) AddMessageWithParts(role string, parts []ContentPart) {
+	a.Messages = append(a.Messages, messages{
 		Role:    role,
-		Content: content,
+		Content: MessageContent{Parts: parts},
 	})
 }
 

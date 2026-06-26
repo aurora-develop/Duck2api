@@ -7,7 +7,10 @@ import (
 	"aurora/internal/proxys"
 	duckgotypes "aurora/typings/duckgo"
 	officialtypes "aurora/typings/official"
+	"encoding/base64"
+	"io"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,6 +20,14 @@ type Handler struct {
 }
 
 func NewHandle(proxy *proxys.IProxy) *Handler {
+	// Wire up file store for file_id resolution in chat
+	duckgoConvert.FileStore = func(fileID string) (string, string, []byte, bool) {
+		f, ok := fileStorage[fileID]
+		if !ok {
+			return "", "", nil, false
+		}
+		return f.Filename, f.MimeType, f.Bytes, true
+	}
 	return &Handler{proxy: proxy}
 }
 
@@ -112,7 +123,11 @@ func (h *Handler) startDuckDuckGoRequest(originalRequest officialtypes.APIReques
 		return duckgotypes.ApiRequest{}, nil, err
 	}
 
-	translatedRequest := duckgoConvert.ConvertAPIRequest(originalRequest)
+	// Extract reasoning effort and web search from request
+	reasoningEffort := originalRequest.ReasoningEffort
+	webSearch := originalRequest.WebSearch != nil && *originalRequest.WebSearch
+
+	translatedRequest := duckgoConvert.ConvertAPIRequestWithOptions(originalRequest, reasoningEffort, webSearch)
 	response, err := duckgo.POSTconversation(client, translatedRequest, token, proxyUrl)
 	if err != nil {
 		return duckgotypes.ApiRequest{}, nil, err
@@ -162,6 +177,284 @@ func writeResponsesStream(c *gin.Context, text string, model string) {
 	}
 }
 
+func (h *Handler) imageGenerations(c *gin.Context) {
+	var req officialtypes.ImageGenerationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, gin.H{"error": gin.H{
+			"message": "Request must be proper JSON",
+			"type":    "invalid_request_error",
+			"param":   nil,
+			"code":    err.Error(),
+		}})
+		return
+	}
+
+	if req.Prompt == "" {
+		c.JSON(400, gin.H{"error": gin.H{
+			"message": "prompt is required",
+			"type":    "invalid_request_error",
+			"param":   "prompt",
+			"code":    "missing_prompt",
+		}})
+		return
+	}
+
+	if req.N == 0 {
+		req.N = 1
+	}
+
+	// Build a chat request with image generation enabled
+	model := req.Model
+	if model == "" {
+		model = "gpt-5.4-nano"
+	}
+
+	chatReq := officialtypes.APIRequest{
+		Model: model,
+		Messages: []officialtypes.ApiMessage{
+			{Role: "user", Content: req.Prompt},
+		},
+		Stream: false,
+	}
+
+	proxyUrl := h.proxy.GetProxyIP()
+	client := bogdanfinn.NewStdClient()
+	token, err := duckgo.InitXVQD(client, proxyUrl)
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "Failed to initialize VQD token",
+			"type":    "internal_server_error",
+			"code":    err.Error(),
+		}})
+		return
+	}
+
+	translatedRequest := duckgoConvert.ConvertAPIRequestWithOptions(chatReq, req.ReasoningEffort, false)
+	translatedRequest.Metadata.ToolChoice.GenerateImage = true
+
+	response, err := duckgo.POSTconversation(client, translatedRequest, token, proxyUrl)
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "Failed to generate image",
+			"type":    "internal_server_error",
+			"code":    err.Error(),
+		}})
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		c.JSON(response.StatusCode, gin.H{"error": gin.H{
+			"message": duckgo.ReadResponseError(response).Error(),
+			"type":    "api_error",
+			"code":    "upstream_error",
+		}})
+		return
+	}
+
+	result := duckgo.ReadImageResponse(response)
+
+	if len(result.Images) == 0 {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "No images were generated",
+			"type":    "internal_server_error",
+			"code":    "no_images",
+		}})
+		return
+	}
+
+	// Build OpenAI-compatible response
+	imageData := make([]officialtypes.ImageData, 0, len(result.Images))
+	for _, img := range result.Images {
+		b64 := img.Result
+		if b64 == "" && img.Data != nil {
+			b64 = img.Data.B64Image
+		}
+		if b64 == "" {
+			continue
+		}
+		imageData = append(imageData, officialtypes.ImageData{
+			B64JSON:       b64,
+			RevisedPrompt: result.Text,
+		})
+	}
+
+	c.JSON(200, officialtypes.ImageGenerationResponse{
+		Created: time.Now().Unix(),
+		Data:    imageData,
+	})
+}
+
+func (h *Handler) imageEdits(c *gin.Context) {
+	// Parse multipart form
+	if err := c.Request.ParseMultipartForm(32 << 20); err != nil {
+		// Try JSON body for base64 input
+		var req officialtypes.ImageEditRequest
+		if jsonErr := c.ShouldBindJSON(&req); jsonErr != nil {
+			c.JSON(400, gin.H{"error": gin.H{
+				"message": "Request must be multipart form or proper JSON",
+				"type":    "invalid_request_error",
+				"param":   nil,
+				"code":    err.Error(),
+			}})
+			return
+		}
+		h.handleImageEditJSON(c, req)
+		return
+	}
+
+	// Multipart form handling
+	prompt := c.Request.FormValue("prompt")
+	if prompt == "" {
+		c.JSON(400, gin.H{"error": gin.H{
+			"message": "prompt is required",
+			"type":    "invalid_request_error",
+			"param":   "prompt",
+			"code":    "missing_prompt",
+		}})
+		return
+	}
+
+	model := c.Request.FormValue("model")
+	if model == "" {
+		model = "gpt-5.4-nano"
+	}
+
+	// Read image file
+	file, _, err := c.Request.FormFile("image")
+	if err != nil {
+		c.JSON(400, gin.H{"error": gin.H{
+			"message": "image file is required",
+			"type":    "invalid_request_error",
+			"param":   "image",
+			"code":    "missing_image",
+		}})
+		return
+	}
+	defer file.Close()
+
+	imageBytes, err := io.ReadAll(file)
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "Failed to read image file",
+			"type":    "internal_server_error",
+			"code":    err.Error(),
+		}})
+		return
+	}
+
+	imageB64 := base64.StdEncoding.EncodeToString(imageBytes)
+	h.doImageEdit(c, prompt, model, imageB64, "")
+}
+
+func (h *Handler) handleImageEditJSON(c *gin.Context, req officialtypes.ImageEditRequest) {
+	if req.Prompt == "" {
+		c.JSON(400, gin.H{"error": gin.H{
+			"message": "prompt is required",
+			"type":    "invalid_request_error",
+			"param":   "prompt",
+			"code":    "missing_prompt",
+		}})
+		return
+	}
+
+	if req.Image == "" {
+		c.JSON(400, gin.H{"error": gin.H{
+			"message": "image is required",
+			"type":    "invalid_request_error",
+			"param":   "image",
+			"code":    "missing_image",
+		}})
+		return
+	}
+
+	model := req.Model
+	if model == "" {
+		model = "gpt-5.4-nano"
+	}
+
+	h.doImageEdit(c, req.Prompt, model, req.Image, req.ReasoningEffort)
+}
+
+func (h *Handler) doImageEdit(c *gin.Context, prompt string, model string, imageB64 string, reasoningEffort string) {
+	// Build the prompt with image context
+	editPrompt := prompt
+
+	chatReq := officialtypes.APIRequest{
+		Model: model,
+		Messages: []officialtypes.ApiMessage{
+			{Role: "user", Content: editPrompt},
+		},
+		Stream: false,
+	}
+
+	proxyUrl := h.proxy.GetProxyIP()
+	client := bogdanfinn.NewStdClient()
+	token, err := duckgo.InitXVQD(client, proxyUrl)
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "Failed to initialize VQD token",
+			"type":    "internal_server_error",
+			"code":    err.Error(),
+		}})
+		return
+	}
+
+	translatedRequest := duckgoConvert.ConvertAPIRequestWithOptions(chatReq, reasoningEffort, false)
+	translatedRequest.Metadata.ToolChoice.GenerateImage = true
+
+	response, err := duckgo.POSTconversation(client, translatedRequest, token, proxyUrl)
+	if err != nil {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "Failed to edit image",
+			"type":    "internal_server_error",
+			"code":    err.Error(),
+		}})
+		return
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		c.JSON(response.StatusCode, gin.H{"error": gin.H{
+			"message": duckgo.ReadResponseError(response).Error(),
+			"type":    "api_error",
+			"code":    "upstream_error",
+		}})
+		return
+	}
+
+	result := duckgo.ReadImageResponse(response)
+
+	if len(result.Images) == 0 {
+		c.JSON(500, gin.H{"error": gin.H{
+			"message": "No images were generated",
+			"type":    "internal_server_error",
+			"code":    "no_images",
+		}})
+		return
+	}
+
+	imageData := make([]officialtypes.ImageData, 0, len(result.Images))
+	for _, img := range result.Images {
+		b64 := img.Result
+		if b64 == "" && img.Data != nil {
+			b64 = img.Data.B64Image
+		}
+		if b64 == "" {
+			continue
+		}
+		imageData = append(imageData, officialtypes.ImageData{
+			B64JSON:       b64,
+			RevisedPrompt: result.Text,
+		})
+	}
+
+	c.JSON(200, officialtypes.ImageGenerationResponse{
+		Created: time.Now().Unix(),
+		Data:    imageData,
+	})
+}
+
 func (h *Handler) engines(c *gin.Context) {
 	type ResData struct {
 		ID      string `json:"id"`
@@ -185,10 +478,14 @@ func (h *Handler) engines(c *gin.Context) {
 		"gpt-4o-mini",
 		"gpt-5-mini",
 		"gpt-5.4-mini",
+		"gpt-5.4-nano",
+		"gpt-5.1-thinking",
+		"gpt-5.2-thinking",
 		"tinfoil/gpt-oss-120b",
 		"gpt-3.5-turbo-0125",
 		"claude-3-haiku-20240307",
 		"claude-haiku-4-5",
+		"claude-opus-4-6-thinking",
 		"llama-3.3-70b",
 		"llama-4-scout",
 		"mistral-small",

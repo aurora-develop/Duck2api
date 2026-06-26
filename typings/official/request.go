@@ -6,13 +6,16 @@ import (
 )
 
 type APIRequest struct {
-	Messages  []api_message `json:"messages"`
+	Messages  []ApiMessage `json:"messages"`
 	Stream    bool          `json:"stream"`
 	Model     string        `json:"model"`
 	PluginIDs []string      `json:"plugin_ids"`
+	// Extra fields for Duck.ai features (not standard OpenAI)
+	ReasoningEffort string `json:"reasoning_effort,omitempty"` // "none", "low", "medium", "high"
+	WebSearch       *bool  `json:"web_search,omitempty"`       // enable web search
 }
 
-type api_message struct {
+type ApiMessage struct {
 	Role    string      `json:"role"`
 	Content interface{} `json:"content"`
 }
@@ -38,7 +41,7 @@ func (r ResponseAPIRequest) ToChatCompletionRequest() APIRequest {
 		request.Model = "gpt-5-mini"
 	}
 	if strings.TrimSpace(r.Instructions) != "" {
-		request.Messages = append(request.Messages, api_message{
+		request.Messages = append(request.Messages, ApiMessage{
 			Role:    "system",
 			Content: r.Instructions,
 		})
@@ -48,15 +51,15 @@ func (r ResponseAPIRequest) ToChatCompletionRequest() APIRequest {
 	return request
 }
 
-func responseInputMessages(input interface{}) []api_message {
+func responseInputMessages(input interface{}) []ApiMessage {
 	switch value := input.(type) {
 	case string:
 		if strings.TrimSpace(value) == "" {
 			return nil
 		}
-		return []api_message{{Role: "user", Content: value}}
+		return []ApiMessage{{Role: "user", Content: value}}
 	case []interface{}:
-		messages := make([]api_message, 0, len(value))
+		messages := make([]ApiMessage, 0, len(value))
 		for _, item := range value {
 			messages = append(messages, responseInputItemToMessages(item)...)
 		}
@@ -66,7 +69,7 @@ func responseInputMessages(input interface{}) []api_message {
 	}
 }
 
-func responseInputItemToMessages(item interface{}) []api_message {
+func responseInputItemToMessages(item interface{}) []ApiMessage {
 	itemMap, ok := item.(map[string]interface{})
 	if !ok {
 		return nil
@@ -83,7 +86,7 @@ func responseInputItemToMessages(item interface{}) []api_message {
 		if strings.TrimSpace(content) == "" {
 			return nil
 		}
-		return []api_message{{Role: role, Content: content}}
+		return []ApiMessage{{Role: role, Content: content}}
 	case "function_call_output":
 		output := responseContentText(itemMap["output"])
 		if output == "" {
@@ -93,7 +96,7 @@ func responseInputItemToMessages(item interface{}) []api_message {
 		if callID != "" {
 			output = fmt.Sprintf("Tool output for %s:\n%s", callID, output)
 		}
-		return []api_message{{Role: "user", Content: output}}
+		return []ApiMessage{{Role: "user", Content: output}}
 	default:
 		return nil
 	}
