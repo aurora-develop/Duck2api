@@ -511,16 +511,11 @@ curl http://localhost:8080/ping
 
 | 模型 ID | 说明 |
 |---------|------|
-| `gpt-5-mini` | OpenAI GPT-5 Mini |
-| `gpt-4o-mini` | OpenAI GPT-4o Mini |
-| `gpt-3.5-turbo-0125` | 映射到 gpt-4o-mini |
-| `claude-3-haiku-20240307` | Anthropic Claude 3 Haiku |
 | `claude-haiku-4-5` | Anthropic Claude Haiku 4.5 |
-| `llama-3.3-70b` | Meta Llama 3.3 70B |
-| `llama-4-scout` | Meta Llama 4 Scout |
 | `mistral-small` | Mistral Small |
-| `meta-llama/Llama-4-Scout-17B-16E-Instruct` | Llama 4 (原始 ID) |
-| `mistralai/Mistral-Small-24B-Instruct-2501` | Mistral Small (原始 ID) |
+| `tinfoil/gpt-oss-120b` | OpenAI GPT-1.5 120B |
+
+
 
 ### 推理模型
 
