@@ -16,7 +16,7 @@ import (
 	"math/big"
 	"strings"
 
-	"github.com/chai2010/webp"
+	"github.com/deepteams/webp"
 	"github.com/google/uuid"
 )
 
@@ -278,7 +278,7 @@ func convertToWebP(data []byte, mimeType string) []byte {
 	}
 
 	var buf bytes.Buffer
-	if err := webp.Encode(&buf, img, &webp.Options{Quality: 75}); err != nil {
+	if err := webp.Encode(&buf, img, &webp.EncoderOptions{Quality: 75}); err != nil {
 		// Fallback to JPEG if webp fails
 		var jpegBuf bytes.Buffer
 		jpeg.Encode(&jpegBuf, img, &jpeg.Options{Quality: 75})

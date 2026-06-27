@@ -7,7 +7,7 @@ require (
 	github.com/acheong08/endless v0.0.0-20230615162514-90545c7793fd
 	github.com/bogdanfinn/fhttp v0.6.8
 	github.com/bogdanfinn/tls-client v1.15.1
-	github.com/chai2010/webp v1.4.0
+	github.com/deepteams/webp v1.2.6-0.20260617072844-30a14b60eb60
 	github.com/dop251/goja v0.0.0-20260618133527-c9b2ea77db59
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-resty/resty/v2 v2.17.2
