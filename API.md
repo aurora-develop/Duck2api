@@ -528,9 +528,6 @@ curl http://localhost:8080/ping
 |---------|------|
 | `gpt-5.4-nano` | OpenAI GPT-5.4 Nano（推理） |
 | `gpt-5.4-mini` | OpenAI GPT-5.4 Mini（推理） |
-| `gpt-5.2-thinking` | GPT-5.2 深度思考 |
-| `gpt-5.1-thinking` | GPT-5.1 深度思考 |
-| `claude-opus-4-6-thinking` | Claude Opus 推理模型 |
 
 ---
 

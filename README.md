@@ -167,15 +167,11 @@ curl http://localhost:8080/v1/audio/speech \
 |------|------|------|
 | `gpt-5.4-nano` | 推理 | OpenAI 最新轻量推理模型 |
 | `gpt-5.4-mini` | 推理 | OpenAI 推理模型 |
-| `gpt-5.2-thinking` | 推理 | 深度思考模型 |
-| `gpt-5.1-thinking` | 推理 | 深度思考模型 |
 | `gpt-5-mini` | 通用 | OpenAI 通用模型 |
 | `gpt-4o-mini` | 通用 | OpenAI 通用模型 |
 | `gpt-3.5-turbo-0125` | 通用 | 映射到 gpt-4o-mini |
 | `claude-3-haiku-20240307` | 通用 | Anthropic Claude |
 | `claude-haiku-4-5` | 通用 | Anthropic Claude |
-| `claude-opus-4-6-thinking` | 推理 | Claude 推理模型 |
-| `llama-3.3-70b` | 通用 | Meta Llama |
 | `llama-4-scout` | 通用 | Meta Llama 4 |
 | `mistral-small` | 通用 | Mistral AI |
 
