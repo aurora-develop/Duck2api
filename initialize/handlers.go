@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -671,42 +672,94 @@ func (h *Handler) doImageEdit(c *gin.Context, prompt string, model string, image
 	})
 }
 
+type ResData struct {
+	ID      string `json:"id"`
+	Object  string `json:"object"`
+	Created int    `json:"created"`
+	OwnedBy string `json:"owned_by"`
+}
+
+type JSONData struct {
+	Object string    `json:"object"`
+	Data   []ResData `json:"data"`
+}
+
+// 模型列表缓存（动态获取，10 分钟 TTL）
+var (
+	modelListCache     []ResData
+	modelListCacheTime time.Time
+	modelListMu        sync.Mutex
+)
+
+const modelListCacheTTL = 10 * time.Minute
+
+// 兜底模型列表（DuckDuckGo 官方接口不可用时使用）
+var fallbackModelIDs = []string{
+	"gpt-5.4-mini",
+	"gpt-5.4-nano",
+	"gpt-5.6-luna",
+	"claude-haiku-4-5",
+	"mistral-small-2603",
+	"tinfoil/gemma4-31b",
+}
+
 func (h *Handler) engines(c *gin.Context) {
-	type ResData struct {
-		ID      string `json:"id"`
-		Object  string `json:"object"`
-		Created int    `json:"created"`
-		OwnedBy string `json:"owned_by"`
-	}
-
-	type JSONData struct {
-		Object string    `json:"object"`
-		Data   []ResData `json:"data"`
-	}
-
 	modelS := JSONData{
 		Object: "list",
+		Data:   h.getModels(),
 	}
-	var resModelList []ResData
-
-	// Supported models
-	modelIDs := []string{
-		"gpt-5.4-mini",
-		"gpt-5.4-nano",
-		"tinfoil/gpt-oss-120b",
-		"claude-haiku-4-5",
-		"mistral-small",
-	}
-
-	for _, modelID := range modelIDs {
-		resModelList = append(resModelList, ResData{
-			ID:      modelID,
-			Object:  "model",
-			Created: 1685474247,
-			OwnedBy: "duckduckgo",
-		})
-	}
-
-	modelS.Data = resModelList
 	c.JSON(200, modelS)
+}
+
+// getModels 动态获取模型列表：优先 DuckDuckGo 官方接口，失败时使用静态兜底列表
+func (h *Handler) getModels() []ResData {
+	modelListMu.Lock()
+	defer modelListMu.Unlock()
+
+	if len(modelListCache) > 0 && time.Since(modelListCacheTime) < modelListCacheTTL {
+		return modelListCache
+	}
+
+	list := fetchDuckGoModels()
+	if len(list) == 0 {
+		// 兜底：静态列表
+		for _, id := range fallbackModelIDs {
+			list = append(list, ResData{ID: id, Object: "model", Created: 1685474247, OwnedBy: "duckduckgo"})
+		}
+	}
+
+	modelListCache = list
+	modelListCacheTime = time.Now()
+	return list
+}
+
+// fetchDuckGoModels 从 DuckDuckGo 官方接口获取当前可用模型（仅免费可访问的）
+func fetchDuckGoModels() []ResData {
+	client := &http.Client{Timeout: 8 * time.Second}
+	resp, err := client.Get("https://duckduckgo.com/duckchat/v1/models")
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	var result struct {
+		Models []struct {
+			ID              string `json:"id"`
+			EntityHasAccess bool   `json:"entityHasAccess"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil
+	}
+
+	var list []ResData
+	for _, m := range result.Models {
+		if m.ID != "" && m.EntityHasAccess {
+			list = append(list, ResData{ID: m.ID, Object: "model", Created: 1685474247, OwnedBy: "duckduckgo"})
+		}
+	}
+	return list
 }

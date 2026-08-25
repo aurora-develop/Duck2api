@@ -53,8 +53,8 @@ func ConvertAPIRequestWithOptions(apiRequest officialtypes.APIRequest, reasoning
 		realModel = "mistralai/Mixtral-8x7B-Instruct-v0.1"
 	case strings.HasPrefix(modelLower, "llama-4-scout"):
 		realModel = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
-	case strings.HasPrefix(modelLower, "mistral-small"):
-		realModel = "mistralai/Mistral-Small-24B-Instruct-2501"
+	case modelLower == "mistral-small":
+		realModel = "mistral-small-2603"
 	}
 
 	duckgoRequest.Model = realModel
